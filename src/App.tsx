@@ -69,6 +69,11 @@ function App() {
               <div className="w-6 h-6 rounded-full bg-green-500 border border-green-600"></div>
               <div className="text-sm text-gray-600">（10万円）</div>
             </div>
+          </div>
+          <SavingsDots onSavingsUpdate={handleSavingsUpdate} currentAmount={currentAmount} />
+          
+          {/* リセットボタンを右下に配置 */}
+          <div className="flex justify-end mt-8">
             <button 
               className="bg-danger hover:bg-red-700 text-white px-4 py-2 rounded transition transform hover:-translate-y-0.5 active:translate-y-0"
               onClick={handleReset}
@@ -77,7 +82,6 @@ function App() {
               リセット
             </button>
           </div>
-          <SavingsDots onSavingsUpdate={handleSavingsUpdate} currentAmount={currentAmount} />
         </section>
       </main>
       
