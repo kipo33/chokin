@@ -149,6 +149,12 @@ const SavingsDots: React.FC<SavingsDotsProps> = ({ onSavingsUpdate, currentAmoun
   const rowCount = Math.ceil(1000 / DOTS_PER_ROW);
   const rows = Array.from({ length: rowCount }, (_, i) => i);
 
+  // 変更前後のドット数と金額を計算
+  const savedDotsCount = savedDots.filter(dot => dot).length;
+  const currentDotsCount = clickedDots.filter(dot => dot).length;
+  const dotsDifference = currentDotsCount - savedDotsCount;
+  const amountDifference = dotsDifference * 10000;
+
   // 10個のドットをまとめてグループ化して表示する関数
   const renderDotGroup = (startIdx: number) => {
     const endIdx = Math.min(startIdx + DOTS_PER_GROUP, 1000);
@@ -191,42 +197,59 @@ const SavingsDots: React.FC<SavingsDotsProps> = ({ onSavingsUpdate, currentAmoun
   return (
     <div className="max-w-full mx-auto">
       {/* 操作ボタン */}
-      <div className="flex justify-end mb-4 gap-2">
-        <div className="flex items-center gap-2 mr-auto">
+      <div className="flex items-center justify-between mb-4 gap-2">
+        {/* +/- ボタン */}
+        <div className="flex items-center gap-2">
           <button
             onClick={handleAddDot}
-            className="w-10 h-10 flex items-center justify-center bg-green-500 hover:bg-green-600 text-white text-xl font-bold rounded-full transition-colors"
+            className="w-10 h-10 flex items-center justify-center bg-green-500 hover:bg-green-600 text-white text-xl font-bold rounded-md transition-colors"
             title="ドットを1つ追加します"
           >
             ＋
           </button>
           <button
             onClick={handleRemoveDot}
-            className="w-10 h-10 flex items-center justify-center bg-red-500 hover:bg-red-600 text-white text-xl font-bold rounded-full transition-colors"
+            className="w-10 h-10 flex items-center justify-center bg-red-500 hover:bg-red-600 text-white text-xl font-bold rounded-md transition-colors"
             title="ドットを1つ減らします"
           >
             －
           </button>
         </div>
-        
-        {hasChanges && (
+
+        {/* 変更状態表示 */}
+        <div className="flex items-center text-sm">
+          {hasChanges && (
+            <div className="bg-gray-100 px-3 py-2 rounded-md flex items-center gap-2">
+              <span className="text-gray-600">
+                {savedDotsCount}個 → {currentDotsCount}個
+              </span>
+              <span className={`font-medium ${dotsDifference > 0 ? 'text-green-600' : dotsDifference < 0 ? 'text-red-600' : 'text-gray-600'}`}>
+                ({dotsDifference > 0 ? '+' : ''}{dotsDifference}個 / {amountDifference > 0 ? '+' : ''}{amountDifference.toLocaleString()}円)
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* キャンセル/登録ボタン */}
+        <div className="flex items-center gap-2">
+          {hasChanges && (
+            <button
+              onClick={handleCancelChanges}
+              className="h-10 px-4 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-md transition-colors"
+              title="変更をキャンセルします"
+            >
+              キャンセル
+            </button>
+          )}
           <button
-            onClick={handleCancelChanges}
-            className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-md transition-colors"
-            title="変更をキャンセルします"
+            onClick={handleSaveChanges}
+            className="h-10 px-4 bg-primary hover:bg-green-700 text-white rounded-md transition-colors"
+            title="変更を登録して貯金額に反映します"
+            disabled={!hasChanges}
           >
-            キャンセル
+            登録
           </button>
-        )}
-        
-        <button
-          onClick={handleSaveChanges}
-          className="px-4 py-2 bg-primary hover:bg-green-700 text-white rounded-md transition-colors"
-          title="変更を登録して貯金額に反映します"
-          disabled={!hasChanges}
-        >
-          登録
-        </button>
+        </div>
       </div>
       
       {/* ドット表示エリア */}
@@ -253,24 +276,41 @@ const SavingsDots: React.FC<SavingsDotsProps> = ({ onSavingsUpdate, currentAmoun
       </div>
       
       {/* スマホ用の操作ボタン */}
-      <div className="mt-6 flex justify-center md:hidden">
-        <div className="w-full max-w-xs flex gap-2">
+      <div className="mt-6 flex flex-col gap-3 md:hidden">
+        {/* 変更状態表示（スマホ用） */}
+        {hasChanges && (
+          <div className="bg-gray-100 p-3 rounded-md flex flex-col items-center">
+            <div className="flex items-center justify-center gap-2">
+              <span className="text-gray-600">
+                {savedDotsCount}個 → {currentDotsCount}個
+              </span>
+            </div>
+            <div className="mt-1">
+              <span className={`font-medium ${dotsDifference > 0 ? 'text-green-600' : dotsDifference < 0 ? 'text-red-600' : 'text-gray-600'}`}>
+                ({dotsDifference > 0 ? '+' : ''}{dotsDifference}個 / {amountDifference > 0 ? '+' : ''}{amountDifference.toLocaleString()}円)
+              </span>
+            </div>
+          </div>
+        )}
+        
+        {/* ボタングループ（スマホ用） */}
+        <div className="w-full flex gap-2">
           <button
             onClick={handleAddDot}
-            className="flex-1 py-3 bg-green-500 hover:bg-green-600 text-white text-lg rounded-md transition-colors"
+            className="flex-1 h-12 bg-green-500 hover:bg-green-600 text-white text-lg rounded-md transition-colors"
           >
             ＋
           </button>
           <button
             onClick={handleSaveChanges}
-            className="flex-2 py-3 px-4 bg-primary hover:bg-green-700 text-white text-lg rounded-md transition-colors"
+            className="flex-2 h-12 px-4 bg-primary hover:bg-green-700 text-white text-lg rounded-md transition-colors"
             disabled={!hasChanges}
           >
             登録
           </button>
           <button
             onClick={handleRemoveDot}
-            className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white text-lg rounded-md transition-colors"
+            className="flex-1 h-12 bg-red-500 hover:bg-red-600 text-white text-lg rounded-md transition-colors"
           >
             －
           </button>
