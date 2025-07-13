@@ -39,7 +39,7 @@ function App() {
         
         <section className="savings-section">
           <h3>貯金をする（1つの丸 = 10,000円、合計1000個のドット）</h3>
-          <SavingsDots onSavingsUpdate={handleSavingsUpdate} />
+          <SavingsDots onSavingsUpdate={handleSavingsUpdate} currentAmount={currentAmount} />
         </section>
       </main>
       
