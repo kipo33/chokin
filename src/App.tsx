@@ -53,7 +53,10 @@ function App() {
         <section className="mt-12">
           <div className="flex flex-col items-center mb-6">
             <h3 className="text-xl font-semibold text-primary mb-2">貯金をする（1つの丸 = 10,000円、合計1000個のドット）</h3>
-            <p className="text-sm text-gray-500 italic mb-4">行番号ボタンをクリックすると、一行まとめてON/OFFできます！</p>
+            <div className="text-sm text-gray-500 italic mb-4 text-center">
+              <p>行番号ボタンをクリックすると、一行まとめてON/OFFできます！</p>
+              <p className="mt-1">ドットの変更後、「登録」ボタンを押すと貯金額に反映されます</p>
+            </div>
             <button 
               className="bg-danger hover:bg-red-700 text-white px-4 py-2 rounded transition transform hover:-translate-y-0.5 active:translate-y-0"
               onClick={handleReset}

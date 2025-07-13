@@ -6,42 +6,63 @@ interface SavingsDotsProps {
 }
 
 const SavingsDots: React.FC<SavingsDotsProps> = ({ onSavingsUpdate, currentAmount }) => {
-  // 貯金ボタンがクリックされた状態を管理する配列（1000個）
+  // 保存済みのドット状態
+  const [savedDots, setSavedDots] = useState<boolean[]>(Array(1000).fill(false));
+  // 現在編集中のドット状態
   const [clickedDots, setClickedDots] = useState<boolean[]>(Array(1000).fill(false));
+  // 変更があるかどうかのフラグ
+  const [hasChanges, setHasChanges] = useState(false);
   
   // 初期化時と貯金額変更時にボタンの状態を更新
   useEffect(() => {
     // ローカルストレージからボタン状態を復元
-    const savedDots = localStorage.getItem('savings-dots');
-    if (savedDots) {
-      setClickedDots(JSON.parse(savedDots));
+    const storedDots = localStorage.getItem('savings-dots');
+    if (storedDots) {
+      const dots = JSON.parse(storedDots);
+      setSavedDots(dots);
+      setClickedDots(dots);
     } else if (currentAmount > 0) {
       // 保存されたボタン状態がない場合は、貯金額に基づいて自動的にボタンを設定
       const dotsCount = Math.floor(currentAmount / 10000);
-      const newClickedDots = Array(1000).fill(false);
+      const newDots = Array(1000).fill(false);
       for (let i = 0; i < dotsCount && i < 1000; i++) {
-        newClickedDots[i] = true;
+        newDots[i] = true;
       }
-      setClickedDots(newClickedDots);
-      localStorage.setItem('savings-dots', JSON.stringify(newClickedDots));
+      setSavedDots(newDots);
+      setClickedDots(newDots);
+      localStorage.setItem('savings-dots', JSON.stringify(newDots));
     }
   }, [currentAmount]);
   
-  // ボタンがクリックされたときの処理
+  // 変更を保存して反映する処理
+  const handleSaveChanges = () => {
+    if (!hasChanges) return;
+    
+    // 変更前と変更後のONのドット数を比較して、差分を計算
+    const prevActiveCount = savedDots.filter(dot => dot).length;
+    const newActiveCount = clickedDots.filter(dot => dot).length;
+    const difference = newActiveCount - prevActiveCount;
+    
+    // 状態を更新
+    setSavedDots([...clickedDots]);
+    localStorage.setItem('savings-dots', JSON.stringify(clickedDots));
+    
+    // 親コンポーネントに貯金の更新を通知（差分 × 10,000円）
+    onSavingsUpdate(difference * 10000);
+    
+    // 変更フラグをリセット
+    setHasChanges(false);
+  };
+  
+  // ボタンがクリックされたときの処理（一時的な状態の更新のみ）
   const handleDotClick = (index: number) => {
     const newClickedDots = [...clickedDots];
     newClickedDots[index] = !newClickedDots[index];
     setClickedDots(newClickedDots);
-    
-    // ボタン状態をローカルストレージに保存
-    localStorage.setItem('savings-dots', JSON.stringify(newClickedDots));
-    
-    // 親コンポーネントに貯金の更新を通知
-    // クリックした場合は+10,000円、クリックを解除した場合は-10,000円
-    onSavingsUpdate(newClickedDots[index] ? 10000 : -10000);
+    setHasChanges(true);
   };
 
-  // 行全体のON/OFFを切り替える処理
+  // 行全体のON/OFFを切り替える処理（一時的な状態の更新のみ）
   const handleRowToggle = (rowIndex: number) => {
     const rowStartIdx = rowIndex * 40; // 1行は40個のドット
     const rowEndIdx = Math.min(rowStartIdx + 40, 1000); // 行の末尾（1000を超えないように）
@@ -53,21 +74,23 @@ const SavingsDots: React.FC<SavingsDotsProps> = ({ onSavingsUpdate, currentAmoun
     
     // 新しいドット状態を作成
     const newClickedDots = [...clickedDots];
-    let changeCount = 0;
     
     for (let i = rowStartIdx; i < rowEndIdx; i++) {
-      if (newClickedDots[i] !== shouldActivate) {
-        changeCount += shouldActivate ? 1 : -1;
-        newClickedDots[i] = shouldActivate;
-      }
+      newClickedDots[i] = shouldActivate;
     }
     
-    // 状態を更新
+    // 状態を更新（一時的な更新のみ）
     setClickedDots(newClickedDots);
-    localStorage.setItem('savings-dots', JSON.stringify(newClickedDots));
+    setHasChanges(true);
+  };
+
+  // 変更をキャンセルする処理
+  const handleCancelChanges = () => {
+    if (!hasChanges) return;
     
-    // 変更された数 × 10000円を更新
-    onSavingsUpdate(changeCount * 10000);
+    // 保存済みの状態に戻す
+    setClickedDots([...savedDots]);
+    setHasChanges(false);
   };
 
   // 行数を計算（1000個のドットを40個ずつで分割）
@@ -76,6 +99,29 @@ const SavingsDots: React.FC<SavingsDotsProps> = ({ onSavingsUpdate, currentAmoun
 
   return (
     <div className="max-w-3xl mx-auto">
+      {/* 操作ボタン */}
+      <div className="flex justify-end mb-4 gap-2">
+        {hasChanges && (
+          <>
+            <button
+              onClick={handleCancelChanges}
+              className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-md transition-colors"
+              title="変更をキャンセルします"
+            >
+              キャンセル
+            </button>
+            <button
+              onClick={handleSaveChanges}
+              className="px-4 py-2 bg-primary hover:bg-green-700 text-white rounded-md transition-colors"
+              title="変更を登録して貯金額に反映します"
+            >
+              登録
+            </button>
+          </>
+        )}
+      </div>
+      
+      {/* ドット表示エリア */}
       {rows.map((rowIndex) => (
         <div key={rowIndex} className="flex items-center mb-1.5">
           <button 
@@ -101,6 +147,18 @@ const SavingsDots: React.FC<SavingsDotsProps> = ({ onSavingsUpdate, currentAmoun
           </div>
         </div>
       ))}
+      
+      {/* 変更がある場合の下部の登録ボタン（スマホ用） */}
+      {hasChanges && (
+        <div className="mt-6 flex justify-center md:hidden">
+          <button
+            onClick={handleSaveChanges}
+            className="px-8 py-3 bg-primary hover:bg-green-700 text-white text-lg rounded-md transition-colors w-full max-w-xs"
+          >
+            変更を登録する
+          </button>
+        </div>
+      )}
     </div>
   );
 };
