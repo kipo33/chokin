@@ -27,6 +27,18 @@ function App() {
     localStorage.setItem('savings-amount', newAmount.toString());
   };
 
+  // リセット処理
+  const handleReset = () => {
+    if (window.confirm('本当にリセットしますか？全ての貯金データが消去されます。')) {
+      // 貯金額をリセット
+      setCurrentAmount(0);
+      
+      // ローカルストレージからデータを削除
+      localStorage.removeItem('savings-amount');
+      localStorage.removeItem('savings-dots');
+    }
+  };
+
   return (
     <div className="app-container">
       <header className="app-header">
@@ -38,7 +50,16 @@ function App() {
         <SavingsGoal currentAmount={currentAmount} targetAmount={targetAmount} />
         
         <section className="savings-section">
-          <h3>貯金をする（1つの丸 = 10,000円、合計1000個のドット）</h3>
+          <div className="section-header">
+            <h3>貯金をする（1つの丸 = 10,000円、合計1000個のドット）</h3>
+            <button 
+              className="reset-button" 
+              onClick={handleReset}
+              title="すべての貯金データをリセットします"
+            >
+              リセット
+            </button>
+          </div>
           <SavingsDots onSavingsUpdate={handleSavingsUpdate} currentAmount={currentAmount} />
         </section>
       </main>
