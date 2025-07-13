@@ -120,6 +120,31 @@ const SavingsDots: React.FC<SavingsDotsProps> = ({ onSavingsUpdate, currentAmoun
     setHasChanges(false);
   };
 
+  // ドットを増やす処理
+  const handleAddDot = () => {
+    // 現在OFFのドットを探す
+    const firstInactiveIndex = clickedDots.findIndex(dot => !dot);
+    if (firstInactiveIndex !== -1) {
+      const newClickedDots = [...clickedDots];
+      newClickedDots[firstInactiveIndex] = true;
+      setClickedDots(newClickedDots);
+      setHasChanges(true);
+    }
+  };
+
+  // ドットを減らす処理
+  const handleRemoveDot = () => {
+    // 現在ONのドットを探す（後ろから探す）
+    const lastActiveIndex = [...clickedDots].reverse().findIndex(dot => dot);
+    if (lastActiveIndex !== -1) {
+      const actualIndex = clickedDots.length - 1 - lastActiveIndex;
+      const newClickedDots = [...clickedDots];
+      newClickedDots[actualIndex] = false;
+      setClickedDots(newClickedDots);
+      setHasChanges(true);
+    }
+  };
+
   // 行数を計算（1000個のドットを50個ずつで分割）
   const rowCount = Math.ceil(1000 / DOTS_PER_ROW);
   const rows = Array.from({ length: rowCount }, (_, i) => i);
@@ -167,24 +192,41 @@ const SavingsDots: React.FC<SavingsDotsProps> = ({ onSavingsUpdate, currentAmoun
     <div className="max-w-full mx-auto">
       {/* 操作ボタン */}
       <div className="flex justify-end mb-4 gap-2">
+        <div className="flex items-center gap-2 mr-auto">
+          <button
+            onClick={handleAddDot}
+            className="w-10 h-10 flex items-center justify-center bg-green-500 hover:bg-green-600 text-white text-xl font-bold rounded-full transition-colors"
+            title="ドットを1つ追加します"
+          >
+            ＋
+          </button>
+          <button
+            onClick={handleRemoveDot}
+            className="w-10 h-10 flex items-center justify-center bg-red-500 hover:bg-red-600 text-white text-xl font-bold rounded-full transition-colors"
+            title="ドットを1つ減らします"
+          >
+            －
+          </button>
+        </div>
+        
         {hasChanges && (
-          <>
-            <button
-              onClick={handleCancelChanges}
-              className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-md transition-colors"
-              title="変更をキャンセルします"
-            >
-              キャンセル
-            </button>
-            <button
-              onClick={handleSaveChanges}
-              className="px-4 py-2 bg-primary hover:bg-green-700 text-white rounded-md transition-colors"
-              title="変更を登録して貯金額に反映します"
-            >
-              登録
-            </button>
-          </>
+          <button
+            onClick={handleCancelChanges}
+            className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-md transition-colors"
+            title="変更をキャンセルします"
+          >
+            キャンセル
+          </button>
         )}
+        
+        <button
+          onClick={handleSaveChanges}
+          className="px-4 py-2 bg-primary hover:bg-green-700 text-white rounded-md transition-colors"
+          title="変更を登録して貯金額に反映します"
+          disabled={!hasChanges}
+        >
+          登録
+        </button>
       </div>
       
       {/* ドット表示エリア */}
@@ -210,17 +252,30 @@ const SavingsDots: React.FC<SavingsDotsProps> = ({ onSavingsUpdate, currentAmoun
         ))}
       </div>
       
-      {/* 変更がある場合の下部の登録ボタン（スマホ用） */}
-      {hasChanges && (
-        <div className="mt-6 flex justify-center md:hidden">
+      {/* スマホ用の操作ボタン */}
+      <div className="mt-6 flex justify-center md:hidden">
+        <div className="w-full max-w-xs flex gap-2">
+          <button
+            onClick={handleAddDot}
+            className="flex-1 py-3 bg-green-500 hover:bg-green-600 text-white text-lg rounded-md transition-colors"
+          >
+            ＋
+          </button>
           <button
             onClick={handleSaveChanges}
-            className="px-8 py-3 bg-primary hover:bg-green-700 text-white text-lg rounded-md transition-colors w-full max-w-xs"
+            className="flex-2 py-3 px-4 bg-primary hover:bg-green-700 text-white text-lg rounded-md transition-colors"
+            disabled={!hasChanges}
           >
-            変更を登録する
+            登録
+          </button>
+          <button
+            onClick={handleRemoveDot}
+            className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white text-lg rounded-md transition-colors"
+          >
+            －
           </button>
         </div>
-      )}
+      </div>
     </div>
   );
 };
