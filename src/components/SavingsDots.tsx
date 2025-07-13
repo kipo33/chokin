@@ -13,6 +13,11 @@ const SavingsDots: React.FC<SavingsDotsProps> = ({ onSavingsUpdate, currentAmoun
   // 変更があるかどうかのフラグ
   const [hasChanges, setHasChanges] = useState(false);
   
+  // 一行あたりのドット数
+  const DOTS_PER_ROW = 50;
+  // 一グループあたりのドット数
+  const DOTS_PER_GROUP = 10;
+  
   // 初期化時と貯金額変更時にボタンの状態を更新
   useEffect(() => {
     // ローカルストレージからボタン状態を復元
@@ -62,15 +67,37 @@ const SavingsDots: React.FC<SavingsDotsProps> = ({ onSavingsUpdate, currentAmoun
     setHasChanges(true);
   };
 
+  // グループ（10個単位）がクリックされたときの処理
+  const handleGroupClick = (groupIndex: number) => {
+    // 10個のドットのグループの開始インデックス
+    const startIdx = groupIndex * DOTS_PER_GROUP;
+    const endIdx = Math.min(startIdx + DOTS_PER_GROUP, 1000);
+    
+    // グループ内のすべてのドットがONかチェック
+    const groupDots = clickedDots.slice(startIdx, endIdx);
+    const allActive = groupDots.every(dot => dot);
+    
+    // 新しい状態を作成
+    const newClickedDots = [...clickedDots];
+    
+    // グループ内のすべてのドットを反転
+    for (let i = startIdx; i < endIdx; i++) {
+      newClickedDots[i] = !allActive;
+    }
+    
+    setClickedDots(newClickedDots);
+    setHasChanges(true);
+  };
+
   // 行全体のON/OFFを切り替える処理（一時的な状態の更新のみ）
   const handleRowToggle = (rowIndex: number) => {
-    const rowStartIdx = rowIndex * 40; // 1行は40個のドット
-    const rowEndIdx = Math.min(rowStartIdx + 40, 1000); // 行の末尾（1000を超えないように）
+    const rowStartIdx = rowIndex * DOTS_PER_ROW; // 1行は50個のドット
+    const rowEndIdx = Math.min(rowStartIdx + DOTS_PER_ROW, 1000); // 行の末尾（1000を超えないように）
     
     // 行の現在の状態をチェック（半分以上がONなら全部OFFに、そうでなければ全部ONに）
     const rowDots = clickedDots.slice(rowStartIdx, rowEndIdx);
     const activeCount = rowDots.filter(dot => dot).length;
-    const shouldActivate = activeCount <= 20; // 半分以上がONなら全部OFFに
+    const shouldActivate = activeCount <= DOTS_PER_ROW / 2; // 半分以上がONなら全部OFFに
     
     // 新しいドット状態を作成
     const newClickedDots = [...clickedDots];
@@ -93,12 +120,51 @@ const SavingsDots: React.FC<SavingsDotsProps> = ({ onSavingsUpdate, currentAmoun
     setHasChanges(false);
   };
 
-  // 行数を計算（1000個のドットを40個ずつで分割）
-  const rowCount = Math.ceil(1000 / 40);
+  // 行数を計算（1000個のドットを50個ずつで分割）
+  const rowCount = Math.ceil(1000 / DOTS_PER_ROW);
   const rows = Array.from({ length: rowCount }, (_, i) => i);
 
+  // 10個のドットをまとめてグループ化して表示する関数
+  const renderDotGroup = (startIdx: number) => {
+    const endIdx = Math.min(startIdx + DOTS_PER_GROUP, 1000);
+    const groupDots = clickedDots.slice(startIdx, endIdx);
+    
+    // グループ内のONになっているドットの数
+    const activeCount = groupDots.filter(dot => dot).length;
+    
+    // すべてONの場合、大きな円を表示
+    if (activeCount === DOTS_PER_GROUP) {
+      // 小さな円のサイズが2px (w-2) なので、面積が10倍になる半径は √10 ≈ 3.16 倍
+      // 2px × 3.16 ≈ 6.32px ≈ 6px
+      return (
+        <button
+          key={`group-${startIdx}`}
+          className="w-6 h-6 rounded-full cursor-pointer hover:scale-125 hover:z-10 transition-all bg-green-500 border border-green-600 flex-shrink-0"
+          onClick={() => handleGroupClick(Math.floor(startIdx / DOTS_PER_GROUP))}
+          title={`貯金グループ（100,000円）`}
+        />
+      );
+    }
+    
+    // 部分的にONの場合または全くONでない場合は、小さな円を個別に表示
+    return (
+      <div key={`group-${startIdx}`} className="flex flex-wrap gap-0.5 items-center">
+        {groupDots.map((clicked, idx) => (
+          <button
+            key={idx}
+            className={`w-2 h-2 rounded-full cursor-pointer hover:scale-150 hover:z-10 transition-all flex-shrink-0 ${
+              clicked ? 'bg-secondary' : 'bg-gray-200'
+            }`}
+            onClick={() => handleDotClick(startIdx + idx)}
+            title={`貯金ボタン（10,000円）`}
+          />
+        ))}
+      </div>
+    );
+  };
+
   return (
-    <div className="max-w-3xl mx-auto">
+    <div className="max-w-full mx-auto">
       {/* 操作ボタン */}
       <div className="flex justify-end mb-4 gap-2">
         {hasChanges && (
@@ -122,31 +188,27 @@ const SavingsDots: React.FC<SavingsDotsProps> = ({ onSavingsUpdate, currentAmoun
       </div>
       
       {/* ドット表示エリア */}
-      {rows.map((rowIndex) => (
-        <div key={rowIndex} className="flex items-center mb-1.5">
-          <button 
-            className="w-16 h-7 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium rounded border border-gray-300 mr-2 flex items-center justify-center transition-colors"
-            onClick={() => handleRowToggle(rowIndex)}
-            title="この行を一括でON/OFFします"
-          >
-            {rowIndex + 1}行目
-          </button>
-          <div className="flex flex-wrap gap-0.5">
-            {clickedDots
-              .slice(rowIndex * 40, Math.min((rowIndex + 1) * 40, 1000))
-              .map((clicked, idx) => (
-                <button
-                  key={idx}
-                  className={`w-2.5 h-2.5 rounded-full cursor-pointer hover:scale-150 hover:z-10 transition-all ${
-                    clicked ? 'bg-secondary' : 'bg-gray-200'
-                  }`}
-                  onClick={() => handleDotClick(rowIndex * 40 + idx)}
-                  title={`貯金ボタン（10,000円）`}
-                />
+      <div className="w-full overflow-x-auto">
+        {rows.map((rowIndex) => (
+          <div key={rowIndex} className="flex items-center mb-2 whitespace-nowrap">
+            <button 
+              className="w-16 h-7 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium rounded border border-gray-300 mr-2 flex-shrink-0 flex items-center justify-center transition-colors"
+              onClick={() => handleRowToggle(rowIndex)}
+              title="この行を一括でON/OFFします"
+            >
+              {rowIndex + 1}行目
+            </button>
+            <div className="flex items-center space-x-1">
+              {/* 10個単位でグループ化して表示 */}
+              {Array.from({ length: DOTS_PER_ROW / DOTS_PER_GROUP }, (_, i) => rowIndex * DOTS_PER_ROW + i * DOTS_PER_GROUP).map((startIdx) => (
+                <div key={`group-container-${startIdx}`} className="flex-shrink-0">
+                  {renderDotGroup(startIdx)}
+                </div>
               ))}
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
       
       {/* 変更がある場合の下部の登録ボタン（スマホ用） */}
       {hasChanges && (
