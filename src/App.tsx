@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import './App.css'
 import SavingsGoal from './components/SavingsGoal'
 import SavingsDots from './components/SavingsDots'
 
@@ -40,20 +39,23 @@ function App() {
   };
 
   return (
-    <div className="app-container">
-      <header className="app-header">
-        <h1>貯金進捗アプリ</h1>
-        <p>目標達成まで一緒に頑張りましょう！</p>
+    <div className="flex flex-col min-h-screen bg-gray-50">
+      <header className="bg-green-50 py-6 border-b-2 border-secondary">
+        <div className="container mx-auto px-4 text-center">
+          <h1 className="text-3xl font-bold text-primary mb-2">貯金進捗アプリ</h1>
+          <p className="text-gray-600">目標達成まで一緒に頑張りましょう！</p>
+        </div>
       </header>
       
-      <main>
+      <main className="flex-1 container mx-auto px-4 py-6">
         <SavingsGoal currentAmount={currentAmount} targetAmount={targetAmount} />
         
-        <section className="savings-section">
-          <div className="section-header">
-            <h3>貯金をする（1つの丸 = 10,000円、合計1000個のドット）</h3>
+        <section className="mt-12">
+          <div className="flex flex-col items-center mb-6">
+            <h3 className="text-xl font-semibold text-primary mb-2">貯金をする（1つの丸 = 10,000円、合計1000個のドット）</h3>
+            <p className="text-sm text-gray-500 italic mb-4">行番号ボタンをクリックすると、一行まとめてON/OFFできます！</p>
             <button 
-              className="reset-button" 
+              className="bg-danger hover:bg-red-700 text-white px-4 py-2 rounded transition transform hover:-translate-y-0.5 active:translate-y-0"
               onClick={handleReset}
               title="すべての貯金データをリセットします"
             >
@@ -64,8 +66,10 @@ function App() {
         </section>
       </main>
       
-      <footer>
-        <p>© {new Date().getFullYear()} 貯金進捗アプリ</p>
+      <footer className="bg-green-50 py-4 border-t border-gray-200 mt-auto">
+        <div className="container mx-auto px-4 text-center text-gray-600">
+          <p>© {new Date().getFullYear()} 貯金進捗アプリ</p>
+        </div>
       </footer>
     </div>
   )
