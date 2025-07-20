@@ -42,7 +42,7 @@ function App() {
     <div className="flex flex-col min-h-screen bg-gray-50">
       <header className="bg-green-50 py-6 border-b-2 border-secondary">
         <div className="container mx-auto px-4 text-center">
-          <h1 className="text-3xl font-bold text-primary mb-2">貯金進捗アプリ</h1>
+          <h1 className="text-3xl font-bold text-primary mb-2">元本積立アプリ</h1>
           <p className="text-gray-600">目標達成まで一緒に頑張りましょう！</p>
         </div>
       </header>
@@ -87,7 +87,7 @@ function App() {
       
       <footer className="bg-green-50 py-4 border-t border-gray-200 mt-auto">
         <div className="container mx-auto px-4 text-center text-gray-600">
-          <p>© {new Date().getFullYear()} 貯金進捗アプリ</p>
+          <p>© {new Date().getFullYear()} 元本積立アプリ</p>
         </div>
       </footer>
     </div>
