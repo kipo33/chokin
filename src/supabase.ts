@@ -1,13 +1,29 @@
 import { createClient } from '@supabase/supabase-js';
 
-// 環境変数から取得するのが理想ですが、開発目的で直接指定することもできます
-// 本番環境では環境変数に移行することを強く推奨します
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'YOUR_SUPABASE_URL';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'YOUR_SUPABASE_ANON_KEY';
+// 環境変数から取得するのが理想的です
+// .env.local ファイルにVITE_SUPABASE_URLとVITE_SUPABASE_ANON_KEYを設定してください
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-// 環境変数の読み込み状況をログに出力
-console.log('Supabase URL:', supabaseUrl);
-console.log('Supabase ANON KEY 先頭10文字:', supabaseAnonKey.substring(0, 10) + '...');
-console.log('環境変数から直接:', import.meta.env.VITE_SUPABASE_URL ? '取得成功' : '取得失敗');
+// 環境変数が設定されていない場合は警告を表示
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error('Supabase環境変数が設定されていません！');
+  console.error('VITE_SUPABASE_URLとVITE_SUPABASE_ANON_KEYを.envファイルに設定してください');
+}
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey); 
+// シングルトンパターンでSupabaseクライアントを作成
+// これにより複数のGoTrueClientインスタンスが作成されるのを防ぐ
+let supabaseInstance;
+
+export const supabase = (() => {
+  if (!supabaseInstance) {
+    supabaseInstance = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true
+      }
+    });
+  }
+  return supabaseInstance;
+})(); 

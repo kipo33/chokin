@@ -15,6 +15,7 @@ function App() {
   // 認証状態
   const [userId, setUserId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   
   // デフォルトの目標金額: 1000万円
   const [targetAmount, setTargetAmount] = useState<number>(10000000);
@@ -24,28 +25,68 @@ function App() {
 
   // Supabase接続の確認（開発用）
   useEffect(() => {
-    console.log('Supabase URL:', import.meta.env.VITE_SUPABASE_URL ? '設定済み' : '未設定');
-    console.log('Supabase Key:', import.meta.env.VITE_SUPABASE_ANON_KEY ? '設定済み' : '未設定');
+    console.log('=== Supabase設定確認 ===');
+    const hasUrl = Boolean(import.meta.env.VITE_SUPABASE_URL);
+    const hasKey = Boolean(import.meta.env.VITE_SUPABASE_ANON_KEY);
+    
+    console.log('Supabase URL:', hasUrl ? '設定済み' : '未設定 ⚠️');
+    console.log('Supabase Key:', hasKey ? '設定済み' : '未設定 ⚠️');
+    
+    if (!hasUrl || !hasKey) {
+      console.error('環境変数が設定されていません。.envファイルを確認してください。');
+      console.error('VITE_SUPABASE_URL=あなたのSupabaseプロジェクトURL');
+      console.error('VITE_SUPABASE_ANON_KEY=あなたのSupabase匿名キー');
+    }
   }, []);
 
   // 現在のセッションをチェック
   useEffect(() => {
     const checkSession = async () => {
       setIsLoading(true);
-      const { data } = await supabase.auth.getSession();
+      setLoadError(null);
       
-      if (data?.session?.user) {
-        setUserId(data.session.user.id);
-        await loadUserData(data.session.user.id);
-      } else {
-        // 未ログインの場合はローカルストレージから読み込む（互換性維持）
+      try {
+        console.log('セッションの確認を開始...');
+        // 直接getSessionを使用
+        const { data, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          throw error;
+        }
+        
+        if (data?.session?.user) {
+          console.log('セッション取得成功:', data.session.user.id);
+          setUserId(data.session.user.id);
+          try {
+            await loadUserData(data.session.user.id);
+          } catch (userDataError) {
+            console.error('ユーザーデータ読み込みエラー:', userDataError);
+            // ユーザーデータの読み込みに失敗しても、認証自体は成功しているのでエラーを表示しない
+          }
+        } else {
+          console.log('アクティブなセッションなし、ローカルデータを使用');
+          // 未ログインの場合はローカルストレージから読み込む（互換性維持）
+          const savedAmount = localStorage.getItem('savings-amount');
+          if (savedAmount) {
+            setCurrentAmount(parseInt(savedAmount));
+          }
+        }
+      } catch (error) {
+        console.error('セッション読み込みエラー:', error);
+        if (error instanceof Error && error.message.includes('タイムアウト')) {
+          setLoadError('ネットワーク接続が不安定です。再読み込みしてください。');
+        } else {
+          setLoadError('ログインに失敗しました。もう一度お試しください。');
+        }
+        
+        // エラー発生時もローカルストレージを試す
         const savedAmount = localStorage.getItem('savings-amount');
         if (savedAmount) {
           setCurrentAmount(parseInt(savedAmount));
         }
+      } finally {
+        setIsLoading(false);
       }
-      
-      setIsLoading(false);
     };
     
     checkSession();
@@ -53,13 +94,20 @@ function App() {
     // 認証状態の変更を監視
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log('認証状態変更:', event, session?.user?.id || 'ユーザーなし');
+        
         if (event === 'SIGNED_IN' && session?.user) {
+          console.log('ユーザーログイン:', session.user.id);
           setUserId(session.user.id);
           await loadUserData(session.user.id);
         } else if (event === 'SIGNED_OUT') {
+          console.log('ユーザーログアウト');
           setUserId(null);
           setCurrentAmount(0);
           setTargetAmount(10000000);
+          // ローカルストレージのデータをクリア
+          localStorage.removeItem('savings-amount');
+          localStorage.removeItem('savings-dots');
         }
       }
     );
@@ -71,33 +119,70 @@ function App() {
   
   // ユーザーデータの読み込み
   const loadUserData = async (id: string) => {
-    // 目標金額の取得
-    const goal = await getUserSavingsGoal(id);
-    if (goal !== null) {
-      setTargetAmount(goal);
-    } else {
-      // 目標金額がなければデフォルト値を設定
-      await setUserSavingsGoal(id, targetAmount);
-    }
-    
-    // 現在の貯金額を取得
-    const saved = await getUserSavedAmount(id);
-    if (saved !== null) {
-      setCurrentAmount(saved);
+    try {
+      // 目標金額の取得
+      console.log('目標金額の取得を開始...');
+      const goal = await getUserSavingsGoal(id);
+      if (goal !== null) {
+        setTargetAmount(goal);
+      } else {
+        // 目標金額がなければデフォルト値を設定
+        await setUserSavingsGoal(id, targetAmount);
+      }
+      
+      // 現在の貯金額を取得
+      const saved = await getUserSavedAmount(id);
+      if (saved !== null) {
+        setCurrentAmount(saved);
+      }
+    } catch (error) {
+      console.error('ユーザーデータ読み込みエラー:', error);
+      setLoadError('データの読み込みに失敗しました');
     }
   };
   
   // ログイン処理
   const handleLogin = async (id: string) => {
+    console.log('ログイン処理を実行:', id);
     setUserId(id);
-    await loadUserData(id);
+    
+    try {
+      await loadUserData(id);
+      console.log('ユーザーデータ読み込み完了');
+    } catch (error) {
+      console.error('ログイン後のデータ読み込みエラー:', error);
+      alert('データの読み込みに失敗しました。ページを更新してみてください。');
+    }
   };
   
   // ログアウト処理
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    setUserId(null);
-    setCurrentAmount(0);
+    try {
+      console.log('ログアウト処理を開始します');
+      const { error } = await supabase.auth.signOut();
+      
+      if (error) {
+        throw error;
+      }
+      
+      // 状態をリセット
+      setUserId(null);
+      setCurrentAmount(0);
+      setTargetAmount(10000000); // デフォルトの目標金額に戻す
+      setLoadError(null); // エラー状態もクリア
+      
+      // ローカルストレージのデータをクリア
+      localStorage.removeItem('savings-amount');
+      localStorage.removeItem('savings-dots');
+      
+      // ページをリロードして確実に状態をリセット
+      window.location.reload();
+      
+      console.log('ログアウト完了');
+    } catch (error) {
+      console.error('ログアウトエラー:', error);
+      alert('ログアウトに失敗しました。もう一度お試しください。');
+    }
   };
   
   // 目標金額の変更処理
@@ -145,6 +230,35 @@ function App() {
     return (
       <div className="flex justify-center items-center min-h-screen">
         <p className="text-lg">読み込み中...</p>
+      </div>
+    );
+  }
+  
+  // エラーがあれば表示し、Auth画面を表示
+  if (loadError && !userId) {
+    return (
+      <div className="flex flex-col min-h-screen bg-gray-50">
+        <header className="bg-green-50 py-6 border-b-2 border-secondary">
+          <div className="container mx-auto px-4 text-center">
+            <h1 className="text-3xl font-bold text-primary mb-2">元本積立アプリ</h1>
+            <p className="text-gray-600">目標達成まで一緒に頑張りましょう！</p>
+          </div>
+        </header>
+        
+        <main className="flex-1 container mx-auto px-4 py-6">
+          <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6">
+            <p>{loadError}</p>
+            <p className="mt-2">ログインして続行してください。</p>
+          </div>
+          
+          <Auth onLogin={handleLogin} />
+        </main>
+        
+        <footer className="bg-green-50 py-4 border-t border-gray-200 mt-auto">
+          <div className="container mx-auto px-4 text-center text-gray-600">
+            <p>© {new Date().getFullYear()} 元本積立アプリ</p>
+          </div>
+        </footer>
       </div>
     );
   }
