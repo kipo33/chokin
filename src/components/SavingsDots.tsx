@@ -1,15 +1,22 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 
 interface SavingsDotsProps {
   onSavingsUpdate: (amount: number) => void;
-  currentAmount: number; // 現在の貯金額を受け取るプロパティを追加
+  currentAmount: number; // 現在の貯金額
+  targetAmount: number;  // 目標金額を追加
 }
 
-const SavingsDots: React.FC<SavingsDotsProps> = ({ onSavingsUpdate, currentAmount }) => {
+const SavingsDots: React.FC<SavingsDotsProps> = ({ onSavingsUpdate, currentAmount, targetAmount }) => {
+  // 1ドットあたりの金額
+  const DOT_VALUE = 10000;
+  
+  // 目標金額から必要なドット数を計算
+  const maxDots = useMemo(() => Math.ceil(targetAmount / DOT_VALUE), [targetAmount]);
+  
   // 保存済みのドット状態
-  const [savedDots, setSavedDots] = useState<boolean[]>(Array(1000).fill(false));
+  const [savedDots, setSavedDots] = useState<boolean[]>(Array(maxDots).fill(false));
   // 現在編集中のドット状態
-  const [clickedDots, setClickedDots] = useState<boolean[]>(Array(1000).fill(false));
+  const [clickedDots, setClickedDots] = useState<boolean[]>(Array(maxDots).fill(false));
   // 変更があるかどうかのフラグ
   const [hasChanges, setHasChanges] = useState(false);
   
@@ -18,26 +25,58 @@ const SavingsDots: React.FC<SavingsDotsProps> = ({ onSavingsUpdate, currentAmoun
   // 一グループあたりのドット数
   const DOTS_PER_GROUP = 10;
   
+  // 目標金額が変更された場合、ドット配列のサイズを調整
+  useEffect(() => {
+    // 新しい配列サイズに合わせて既存の状態を調整
+    setSavedDots(prev => {
+      const newArray = Array(maxDots).fill(false);
+      // 既存のデータを可能な限りコピー
+      prev.forEach((val, idx) => {
+        if (idx < maxDots) {
+          newArray[idx] = val;
+        }
+      });
+      return newArray;
+    });
+    
+    setClickedDots(prev => {
+      const newArray = Array(maxDots).fill(false);
+      // 既存のデータを可能な限りコピー
+      prev.forEach((val, idx) => {
+        if (idx < maxDots) {
+          newArray[idx] = val;
+        }
+      });
+      return newArray;
+    });
+  }, [maxDots]);
+  
   // 初期化時と貯金額変更時にボタンの状態を更新
   useEffect(() => {
     // ローカルストレージからボタン状態を復元
     const storedDots = localStorage.getItem('savings-dots');
     if (storedDots) {
       const dots = JSON.parse(storedDots);
-      setSavedDots(dots);
-      setClickedDots(dots);
+      // 保存されたデータが現在の最大ドット数より多い場合は切り詰める
+      const adjustedDots = dots.slice(0, maxDots);
+      // 保存されたデータが現在の最大ドット数より少ない場合は拡張する
+      while (adjustedDots.length < maxDots) {
+        adjustedDots.push(false);
+      }
+      setSavedDots(adjustedDots);
+      setClickedDots(adjustedDots);
     } else if (currentAmount > 0) {
       // 保存されたボタン状態がない場合は、貯金額に基づいて自動的にボタンを設定
-      const dotsCount = Math.floor(currentAmount / 10000);
-      const newDots = Array(1000).fill(false);
-      for (let i = 0; i < dotsCount && i < 1000; i++) {
+      const dotsCount = Math.floor(currentAmount / DOT_VALUE);
+      const newDots = Array(maxDots).fill(false);
+      for (let i = 0; i < dotsCount && i < maxDots; i++) {
         newDots[i] = true;
       }
       setSavedDots(newDots);
       setClickedDots(newDots);
       localStorage.setItem('savings-dots', JSON.stringify(newDots));
     }
-  }, [currentAmount]);
+  }, [currentAmount, maxDots, DOT_VALUE]);
   
   // 変更を保存して反映する処理
   const handleSaveChanges = () => {
@@ -52,8 +91,8 @@ const SavingsDots: React.FC<SavingsDotsProps> = ({ onSavingsUpdate, currentAmoun
     setSavedDots([...clickedDots]);
     localStorage.setItem('savings-dots', JSON.stringify(clickedDots));
     
-    // 親コンポーネントに貯金の更新を通知（差分 × 10,000円）
-    onSavingsUpdate(difference * 10000);
+    // 親コンポーネントに貯金の更新を通知（差分 × ドット価値）
+    onSavingsUpdate(difference * DOT_VALUE);
     
     // 変更フラグをリセット
     setHasChanges(false);
@@ -71,7 +110,7 @@ const SavingsDots: React.FC<SavingsDotsProps> = ({ onSavingsUpdate, currentAmoun
   const handleGroupClick = (groupIndex: number) => {
     // 10個のドットのグループの開始インデックス
     const startIdx = groupIndex * DOTS_PER_GROUP;
-    const endIdx = Math.min(startIdx + DOTS_PER_GROUP, 1000);
+    const endIdx = Math.min(startIdx + DOTS_PER_GROUP, maxDots);
     
     // グループ内のすべてのドットがONかチェック
     const groupDots = clickedDots.slice(startIdx, endIdx);
@@ -92,7 +131,7 @@ const SavingsDots: React.FC<SavingsDotsProps> = ({ onSavingsUpdate, currentAmoun
   // 行全体のON/OFFを切り替える処理（一時的な状態の更新のみ）
   const handleRowToggle = (rowIndex: number) => {
     const rowStartIdx = rowIndex * DOTS_PER_ROW; // 1行は50個のドット
-    const rowEndIdx = Math.min(rowStartIdx + DOTS_PER_ROW, 1000); // 行の末尾（1000を超えないように）
+    const rowEndIdx = Math.min(rowStartIdx + DOTS_PER_ROW, maxDots); // 行の末尾（maxDotsを超えないように）
     
     // 行の現在の状態をチェック（半分以上がONなら全部OFFに、そうでなければ全部ONに）
     const rowDots = clickedDots.slice(rowStartIdx, rowEndIdx);
@@ -145,26 +184,30 @@ const SavingsDots: React.FC<SavingsDotsProps> = ({ onSavingsUpdate, currentAmoun
     }
   };
 
-  // 行数を計算（1000個のドットを50個ずつで分割）
-  const rowCount = Math.ceil(1000 / DOTS_PER_ROW);
+  // 行数を計算（maxDots個のドットを50個ずつで分割）
+  const rowCount = Math.ceil(maxDots / DOTS_PER_ROW);
   const rows = Array.from({ length: rowCount }, (_, i) => i);
 
   // 変更前後のドット数と金額を計算
   const savedDotsCount = savedDots.filter(dot => dot).length;
   const currentDotsCount = clickedDots.filter(dot => dot).length;
   const dotsDifference = currentDotsCount - savedDotsCount;
-  const amountDifference = dotsDifference * 10000;
+  const amountDifference = dotsDifference * DOT_VALUE;
 
   // 10個のドットをまとめてグループ化して表示する関数
   const renderDotGroup = (startIdx: number) => {
-    const endIdx = Math.min(startIdx + DOTS_PER_GROUP, 1000);
+    const endIdx = Math.min(startIdx + DOTS_PER_GROUP, maxDots);
     const groupDots = clickedDots.slice(startIdx, endIdx);
+    
+    // 表示すべきドットがない場合は何も表示しない
+    if (groupDots.length === 0) return null;
     
     // グループ内のONになっているドットの数
     const activeCount = groupDots.filter(dot => dot).length;
+    const groupSize = groupDots.length; // 実際のグループサイズ（端数対応）
     
     // すべてONの場合、大きな円を表示
-    if (activeCount === DOTS_PER_GROUP) {
+    if (activeCount === groupSize && groupSize === DOTS_PER_GROUP) {
       // 小さな円のサイズが2px (w-2) なので、面積が10倍になる半径は √10 ≈ 3.16 倍
       // 2px × 3.16 ≈ 6.32px ≈ 6px
       return (
@@ -172,7 +215,7 @@ const SavingsDots: React.FC<SavingsDotsProps> = ({ onSavingsUpdate, currentAmoun
           key={`group-${startIdx}`}
           className="w-6 h-6 rounded-full cursor-pointer hover:scale-125 hover:z-10 transition-all bg-green-500 border border-green-600 flex-shrink-0"
           onClick={() => handleGroupClick(Math.floor(startIdx / DOTS_PER_GROUP))}
-          title={`貯金グループ（100,000円）`}
+          title={`貯金グループ（${DOT_VALUE * DOTS_PER_GROUP}円）`}
         />
       );
     }
@@ -187,7 +230,7 @@ const SavingsDots: React.FC<SavingsDotsProps> = ({ onSavingsUpdate, currentAmoun
               clicked ? 'bg-secondary' : 'bg-gray-200'
             }`}
             onClick={() => handleDotClick(startIdx + idx)}
-            title={`貯金ボタン（10,000円）`}
+            title={`貯金ボタン（${DOT_VALUE}円）`}
           />
         ))}
       </div>
@@ -196,6 +239,12 @@ const SavingsDots: React.FC<SavingsDotsProps> = ({ onSavingsUpdate, currentAmoun
 
   return (
     <div className="max-w-full mx-auto">
+      {/* 目標情報表示 */}
+      <div className="mb-4 text-sm text-gray-600">
+        <p>目標金額: {targetAmount.toLocaleString()}円（{maxDots}ドット）</p>
+        <p>現在の達成率: {Math.floor((currentDotsCount / maxDots) * 100)}%</p>
+      </div>
+
       {/* 操作ボタン */}
       <div className="flex items-center justify-between mb-4 gap-2">
         {/* +/- ボタン */}
@@ -265,7 +314,9 @@ const SavingsDots: React.FC<SavingsDotsProps> = ({ onSavingsUpdate, currentAmoun
             </button>
             <div className="flex items-center space-x-1">
               {/* 10個単位でグループ化して表示 */}
-              {Array.from({ length: DOTS_PER_ROW / DOTS_PER_GROUP }, (_, i) => rowIndex * DOTS_PER_ROW + i * DOTS_PER_GROUP).map((startIdx) => (
+              {Array.from({ length: Math.ceil(Math.min((rowIndex + 1) * DOTS_PER_ROW, maxDots) - rowIndex * DOTS_PER_ROW) / DOTS_PER_GROUP }, (_, i) => 
+                 rowIndex * DOTS_PER_ROW + i * DOTS_PER_GROUP
+              ).map((startIdx) => (
                 <div key={`group-container-${startIdx}`} className="flex-shrink-0">
                   {renderDotGroup(startIdx)}
                 </div>

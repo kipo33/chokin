@@ -174,6 +174,7 @@ function App() {
       // 目標金額の取得
       console.log('目標金額の取得を開始...');
       const goal = await getUserSavingsGoal(id);
+      console.log('目標金額:', goal);
       if (goal !== null) {
         setTargetAmount(goal);
       } else {
@@ -345,10 +346,7 @@ function App() {
                 <div className="flex flex-col items-center mb-6">
                   <h3 className="text-xl font-semibold text-primary mb-2">貯金をする（1つの丸 = 10,000円、合計1000個のドット）</h3>
                   <div className="text-sm text-gray-500 italic mb-4 text-center">
-                    <p>行番号ボタンをクリックすると、一行まとめてON/OFFできます！</p>
-                    <p className="mt-1">ドットの変更後、「登録」ボタンを押すと貯金額に反映されます</p>
-                    <p className="mt-1">10万円単位（10個のドット）が貯まると、大きな円に変わります</p>
-                    <p className="mt-1">1行に50個のドットを表示（500,000円/行）</p>
+                    <p>行番号ボタンをクリックすると、一行まとめてON/OFFできます！</p>                    <p className="mt-1">10万円単位（10個のドット）が貯まると、大きな円に変わります</p>
                   </div>
                   <div className="flex items-center justify-center gap-4 my-2">
                     <div className="flex gap-0.5">
@@ -362,7 +360,7 @@ function App() {
                   </div>
                 </div>
                 
-                <SavingsDots onSavingsUpdate={handleSavingsUpdate} currentAmount={currentAmount} />
+                <SavingsDots onSavingsUpdate={handleSavingsUpdate} currentAmount={currentAmount} targetAmount={targetAmount} />
                 
                 {/* リセットボタンを右下に配置 */}
                 <div className="flex justify-end mt-8">
@@ -446,7 +444,7 @@ function App() {
                 </div>
               </div>
               
-              <SavingsDots onSavingsUpdate={handleSavingsUpdate} currentAmount={currentAmount} />
+              <SavingsDots onSavingsUpdate={handleSavingsUpdate} currentAmount={currentAmount} targetAmount={targetAmount} />
               
               {/* リセットボタンを右下に配置 */}
               <div className="flex justify-end mt-8">
