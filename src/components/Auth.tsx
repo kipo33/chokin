@@ -5,7 +5,7 @@ interface AuthProps {
   onLogin: (userId: string) => void;
 }
 
-const Auth = ({}: AuthProps) => {
+const Auth = ({ onLogin }: AuthProps) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -14,14 +14,36 @@ const Auth = ({}: AuthProps) => {
       setLoading(true);
       setError(null);
       
+      // ブラウザの保存されたセッションを先に確認
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (sessionData?.session?.user) {
+        console.log('既存のセッションを使用:', sessionData.session.user.id);
+        onLogin(sessionData.session.user.id);
+        return;
+      }
+      
+      // 既存セッションがなければOAuthログイン
+      console.log('Googleログインを開始...');
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/`
+          redirectTo: `${window.location.origin}/`,
+          queryParams: {
+            prompt: 'select_account' // 毎回アカウント選択画面を表示
+          }
         }
       });
 
       if (error) throw error;
+      
+      // OAuth完了後、認証リスナーで処理されますが、
+      // 念のため現在のセッションがあれば処理します
+      console.log('Googleログイン完了、セッション確認中...');
+      const session = await supabase.auth.getSession();
+      if (session?.data?.session?.user?.id) {
+        console.log('新規セッション取得成功:', session.data.session.user.id);
+        onLogin(session.data.session.user.id);
+      }
       
     } catch (error) {
       if (error instanceof Error) {
@@ -29,6 +51,7 @@ const Auth = ({}: AuthProps) => {
       } else {
         setError('Google認証エラーが発生しました');
       }
+      console.error('認証エラー:', error);
     } finally {
       setLoading(false);
     }
