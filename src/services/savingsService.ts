@@ -3,18 +3,24 @@ import { supabase } from '../supabase';
 // ユーザーの貯金目標を取得
 export async function getUserSavingsGoal(userId: string): Promise<number | null> {
   try {
+    console.log('getUserSavingsGoal:', userId);
     // TypeScriptの型チェックを回避するためにanyを使用
     const result = await (supabase
       .from('savings_goals')
       .select('target_amount') as any)
       .eq('user_id', userId)
       .single();
+    console.log('result:', result);
 
     const { data, error } = result;
+    console.log('data:', data);
+    console.log('error:', error);
 
     if (error) {
       console.error('目標金額の取得エラー:', error);
       return null;
+    } else {
+      console.log('目標金額の取得成功:', data?.target_amount);
     }
 
     return data?.target_amount || null;

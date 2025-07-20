@@ -26,6 +26,9 @@ function App() {
   // ログアウトが必要かどうか（セッションエラー時）
   const [needsRelogin, setNeedsRelogin] = useState(false);
 
+  // 接続エラーフラグ - ローカルモードを強制するフラグ
+  const [forceLocalMode, setForceLocalMode] = useState(false);
+
   // Supabase接続の確認（開発用）
   useEffect(() => {
     console.log('=== Supabase設定確認 ===');
@@ -42,12 +45,20 @@ function App() {
       
       // 環境変数が設定されていない場合はエラーを表示して、ローカルモードで動作するよう設定
       setLoadError('Supabaseの接続設定が見つかりません。ローカルモードで動作します。');
+      setForceLocalMode(true);
       setIsLoading(false); // ローディング状態を解除
     }
   }, []);
 
   // 現在のセッションをチェック
   useEffect(() => {
+    // 強制ローカルモードの場合はセッションチェックをスキップ
+    if (forceLocalMode) {
+      console.log('強制ローカルモード: セッションチェックをスキップ');
+      setIsLoading(false);
+      return;
+    }
+
     const checkSession = async () => {
       console.log('💡 checkSession開始');
       setIsLoading(true);
@@ -76,7 +87,7 @@ function App() {
             console.log('💡 タイムアウトのPromiseが完了');
             return { data: null, error: new Error('セッション取得がタイムアウトしました') };
           })
-        ]);
+        ]) as { data: any, error: any };
         
         console.log('💡 Promise.race完了:', data ? '取得成功' : '取得失敗');
         
@@ -86,6 +97,11 @@ function App() {
           // セッションエラー時には保存されたトークンをクリア
           console.log('💡 セッショントークンをクリア');
           clearSupabaseTokens();
+          
+          // ローカルストレージのデータをリセット
+          console.log('💡 ローカルストレージのデータをリセット');
+          localStorage.removeItem('savings-amount');
+          localStorage.removeItem('savings-dots');
           
           // 再ログインが必要なことを表示
           setNeedsRelogin(true);
@@ -101,7 +117,12 @@ function App() {
             console.log('💡 loadUserData完了');
           } catch (userDataError) {
             console.error('💡 ユーザーデータ読み込みエラー:', userDataError);
-            // ユーザーデータの読み込みに失敗しても、認証自体は成功しているのでエラーを表示しない
+            // ユーザーデータの読み込みに失敗した場合でもローカルデータを使用
+            const savedAmount = localStorage.getItem('savings-amount');
+            if (savedAmount) {
+              setCurrentAmount(parseInt(savedAmount));
+              console.log('💡 ユーザーデータ読み込み失敗後、ローカルストレージから金額を読み込み:', savedAmount);
+            }
           }
         } else {
           console.log('💡 アクティブなセッションなし、ローカルデータを使用');
@@ -115,19 +136,24 @@ function App() {
         console.log('💡 try句の最後まで実行');
       } catch (error) {
         console.error('💡 セッション読み込みエラー:', error);
+        
+        // セッションエラー時にはローカルストレージをクリア
+        console.log('💡 セッションエラー: ローカルストレージをクリア');
+        localStorage.removeItem('savings-amount');
+        localStorage.removeItem('savings-dots');
+        
+        // Supabase接続エラーの場合、ローカルモードに切り替え
+        setForceLocalMode(true);
+        
         if (error instanceof Error && (error.message.includes('タイムアウト') || error.message.includes('timeout'))) {
-          setLoadError('ネットワーク接続が不安定です。再読み込みしてください。');
+          setLoadError('ネットワーク接続が不安定です。ローカルモードで動作します。');
         } else {
-          setLoadError('ログインに失敗しました。もう一度お試しください。');
+          setLoadError('Supabase接続エラー: ローカルモードで動作します。');
         }
         
-        // エラー発生時もローカルストレージを試す
-        console.log('💡 エラー時のローカルストレージ読み込み試行');
-        const savedAmount = localStorage.getItem('savings-amount');
-        if (savedAmount) {
-          setCurrentAmount(parseInt(savedAmount));
-          console.log('💡 ローカルストレージから金額を読み込み:', savedAmount);
-        }
+        // エラー状態を反映
+        setCurrentAmount(0);
+        setTargetAmount(10000000); // デフォルト値にリセット
       } finally {
         console.log('💡 finally句に到達 - ローディング状態を解除します');
         // 確実にローディング状態を解除
@@ -166,7 +192,7 @@ function App() {
       console.log('💡 クリーンアップ: 認証リスナー解除');
       authListener.subscription.unsubscribe();
     };
-  }, []);
+  }, [forceLocalMode]);
   
   // ユーザーデータの読み込み
   const loadUserData = async (id: string) => {
@@ -190,6 +216,9 @@ function App() {
     } catch (error) {
       console.error('ユーザーデータ読み込みエラー:', error);
       setLoadError('データの読み込みに失敗しました');
+      // エラー発生時にもローカルモードに切り替える
+      setForceLocalMode(true);
+      throw error; // 上位のエラーハンドラでキャッチできるように再スロー
     }
   };
   
@@ -204,7 +233,8 @@ function App() {
       console.log('ユーザーデータ読み込み完了');
     } catch (error) {
       console.error('ログイン後のデータ読み込みエラー:', error);
-      alert('データの読み込みに失敗しました。ページを更新してみてください。');
+      alert('データの読み込みに失敗しました。ローカルモードに切り替えます。');
+      setForceLocalMode(true);
     }
   };
   
@@ -224,6 +254,7 @@ function App() {
       setTargetAmount(10000000); // デフォルトの目標金額に戻す
       setLoadError(null); // エラー状態もクリア
       setNeedsRelogin(false); // 再ログイン状態をリセット
+      setForceLocalMode(false); // ローカルモードをリセット
       
       // ローカルストレージのデータをクリア
       localStorage.removeItem('savings-amount');
@@ -246,6 +277,12 @@ function App() {
   const handleRefreshSession = () => {
     // すべてのトークンをクリア
     clearSupabaseTokens();
+    
+    // ローカルストレージのデータをリセット
+    localStorage.removeItem('savings-amount');
+    localStorage.removeItem('savings-dots');
+    
+    setForceLocalMode(false);
     // ページをリロード
     window.location.reload();
   };
@@ -254,8 +291,13 @@ function App() {
   const handleTargetChange = async (newTarget: number) => {
     setTargetAmount(newTarget);
     
-    if (userId) {
-      await setUserSavingsGoal(userId, newTarget);
+    if (userId && !forceLocalMode) {
+      try {
+        await setUserSavingsGoal(userId, newTarget);
+      } catch (error) {
+        console.error('目標金額の保存に失敗しました:', error);
+        // エラーがあってもUIには反映させる（ローカルには保存される）
+      }
     }
   };
   
@@ -264,13 +306,17 @@ function App() {
     const newAmount = Math.max(0, currentAmount + amount);
     setCurrentAmount(newAmount);
     
-    if (userId) {
-      // Supabaseに保存
-      await updateUserSavedAmount(userId, newAmount);
-    } else {
-      // 未ログインの場合はローカルストレージに保存（互換性維持）
-      localStorage.setItem('savings-amount', newAmount.toString());
+    if (userId && !forceLocalMode) {
+      try {
+        // Supabaseに保存
+        await updateUserSavedAmount(userId, newAmount);
+      } catch (error) {
+        console.error('貯金額の更新に失敗しました:', error);
+      }
     }
+    
+    // 常にローカルストレージにも保存（互換性維持）
+    localStorage.setItem('savings-amount', newAmount.toString());
   };
 
   // リセット処理
@@ -279,14 +325,35 @@ function App() {
       // 貯金額をリセット
       setCurrentAmount(0);
       
-      if (userId) {
-        // Supabaseのデータをリセット
-        await resetUserSavings(userId);
-      } else {
-        // 未ログインの場合はローカルストレージをクリア
-        localStorage.removeItem('savings-amount');
-        localStorage.removeItem('savings-dots');
+      if (userId && !forceLocalMode) {
+        try {
+          // Supabaseのデータをリセット
+          await resetUserSavings(userId);
+        } catch (error) {
+          console.error('貯金データのリセットに失敗しました:', error);
+        }
       }
+      
+      // 常にローカルストレージもクリア
+      localStorage.removeItem('savings-amount');
+      localStorage.removeItem('savings-dots');
+    }
+  };
+
+  // ローカルモード切り替え
+  const toggleLocalMode = () => {
+    const newMode = !forceLocalMode;
+    setForceLocalMode(newMode);
+    if (newMode) {
+      setUserId(null);
+      // ローカルモード時はローカルストレージから読み込む
+      const savedAmount = localStorage.getItem('savings-amount');
+      if (savedAmount) {
+        setCurrentAmount(parseInt(savedAmount));
+      }
+    } else {
+      // オンラインモードに戻す場合はページをリロード
+      window.location.reload();
     }
   };
 
@@ -300,7 +367,7 @@ function App() {
   }
   
   // エラーがあれば表示し、Auth画面を表示
-  if ((loadError && !userId) || needsRelogin) {
+  if ((loadError && !userId && !forceLocalMode) || needsRelogin) {
     return (
       <div className="flex flex-col min-h-screen bg-gray-50">
         <header className="bg-green-50 py-6 border-b-2 border-secondary">
@@ -314,26 +381,34 @@ function App() {
           <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6">
             <p>{needsRelogin ? 'セッションが無効になりました。再度ログインしてください。' : loadError}</p>
             <p className="mt-2">
-              {loadError?.includes('ローカルモード') 
+              {loadError?.includes('ローカルモード') || forceLocalMode
                 ? 'データはブラウザに保存されますが、同期されません。'
                 : 'ログインして続行してください。'
               }
             </p>
             
-            {/* セッションリフレッシュボタン */}
-            {needsRelogin && (
-              <div className="mt-3">
+            <div className="mt-3 flex flex-wrap gap-2">
+              {/* セッションリフレッシュボタン */}
+              {needsRelogin && (
                 <button 
                   onClick={handleRefreshSession}
                   className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded"
                 >
                   セッションをリフレッシュ
                 </button>
-              </div>
-            )}
+              )}
+              
+              {/* ローカルモード切り替えボタン */}
+              <button
+                onClick={toggleLocalMode}
+                className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded"
+              >
+                ローカルモードで続行
+              </button>
+            </div>
           </div>
           
-          {loadError?.includes('ローカルモード') ? (
+          {forceLocalMode ? (
             // ローカルモードの場合、ログインなしで続行できるようにSavingsGoalコンポーネントを表示
             <>
               <SavingsGoal 
@@ -344,9 +419,10 @@ function App() {
               
               <section className="mt-12">
                 <div className="flex flex-col items-center mb-6">
-                  <h3 className="text-xl font-semibold text-primary mb-2">貯金をする（1つの丸 = 10,000円、合計1000個のドット）</h3>
+                  <h3 className="text-xl font-semibold text-primary mb-2">貯金をする（1つの丸 = 10,000円）</h3>
                   <div className="text-sm text-gray-500 italic mb-4 text-center">
-                    <p>行番号ボタンをクリックすると、一行まとめてON/OFFできます！</p>                    <p className="mt-1">10万円単位（10個のドット）が貯まると、大きな円に変わります</p>
+                    <p>行番号ボタンをクリックすると、一行まとめてON/OFFできます！</p>
+                    <p className="mt-1">1行に50個のドットを表示（500,000円/行）</p>
                   </div>
                   <div className="flex items-center justify-center gap-4 my-2">
                     <div className="flex gap-0.5">
@@ -395,11 +471,19 @@ function App() {
           <h1 className="text-3xl font-bold text-primary mb-2">元本積立アプリ</h1>
           <p className="text-gray-600">目標達成まで一緒に頑張りましょう！</p>
           
-          {loadError && loadError.includes('ローカルモード') && (
+          {(loadError && loadError.includes('ローカルモード')) || forceLocalMode ? (
             <div className="mt-2 bg-yellow-100 text-yellow-800 px-3 py-1 rounded inline-block">
               ローカルモードで動作中（データは同期されません）
+              {forceLocalMode && (
+                <button 
+                  onClick={toggleLocalMode}
+                  className="ml-2 text-xs bg-yellow-200 hover:bg-yellow-300 px-2 py-0.5 rounded"
+                >
+                  オンラインモードに切替
+                </button>
+              )}
             </div>
-          )}
+          ) : null}
           
           {userId && (
             <div className="mt-2 flex justify-center">
@@ -415,7 +499,7 @@ function App() {
       </header>
       
       <main className="flex-1 container mx-auto px-4 py-6">
-        {userId ? (
+        {userId || forceLocalMode ? (
           <>
             <SavingsGoal 
               currentAmount={currentAmount} 
@@ -425,7 +509,7 @@ function App() {
             
             <section className="mt-12">
               <div className="flex flex-col items-center mb-6">
-                <h3 className="text-xl font-semibold text-primary mb-2">貯金をする（1つの丸 = 10,000円、合計1000個のドット）</h3>
+                <h3 className="text-xl font-semibold text-primary mb-2">貯金をする（1つの丸 = 10,000円）</h3>
                 <div className="text-sm text-gray-500 italic mb-4 text-center">
                   <p>行番号ボタンをクリックすると、一行まとめてON/OFFできます！</p>
                   <p className="mt-1">1行に50個のドットを表示（500,000円/行）</p>
